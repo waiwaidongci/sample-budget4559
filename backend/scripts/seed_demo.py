@@ -7,7 +7,21 @@ from src.models.user import User
 from src.models.study import Study
 from src.models.observation import Observation
 from src.models import run,review,audit
+from src.models.joint import JointStudy,JointMember,JointRun
+from src.services.joints import seed_base
 from src.utils.security import hash_password
+from src.utils.serializers import now
+
+JOINT_DEMO=('榆灯·联合候选评比',[('CONTROL','control',50000,4125,None,None),('CAND-A','candidate',30000,2610,.12,4000),('CAND-B','candidate',30000,2490,.12,4000),('CAND-C','candidate',30000,2550,.12,4000)])
+
+def seed_joint(db):
+    name,members=JOINT_DEMO
+    study=db.scalar(select(JointStudy).where(JointStudy.name==name))
+    if not study:
+        study=JointStudy(name=name,description='共同对照+多候选联合检验演示 / 整族固定随机依据 / 仅用于方法与流程演示',data_version=1,seed_base=seed_base(name),created_at=now());db.add(study);db.flush()
+    for key,role,impressions,clicks,cost,budget in members:
+        if not db.scalar(select(JointMember.id).where(JointMember.joint_id==study.id,JointMember.member_key==key)):
+            db.add(JointMember(joint_id=study.id,member_key=key,role=role,status='active',impressions=impressions,clicks=clicks,cost_per_contact=cost,budget=budget,updated_at=now()))
 
 def seed():
     Base.metadata.create_all(engine)
@@ -37,7 +51,8 @@ def seed():
                 key=f'DEMO-{k+1}-{n+1:04}'
                 if not db.scalar(select(Observation.id).where(Observation.study_id==study.id,Observation.source_key==key)):
                     db.add(Observation(study_id=study.id,source_key=key,values=values))
+        seed_joint(db)
         db.commit()
-        counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in (User,Study,Observation)}
+        counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in (User,Study,Observation,JointStudy,JointMember)}
         print(json.dumps(counts));return counts
 if __name__=='__main__': seed()

@@ -12,6 +12,15 @@
 - 两比例实验样本量正态近似与二项Monte Carlo功效验证。独立等样本双组、双侧正态近似。模拟功效用于检验近似；低事件率应谨慎采用，正式实验须另行预注册。
 - 每次运行冻结参数、观测和SHA256。Redis任务由独立worker计算，写DB与共享产物卷；输入修改不会改写历史结果。
 - 负责人复核不可覆盖；审计记录登录、数据改动、排队、复核与导出；240请求/分钟限流、全局可恢复错误。
+- 联合研究：多名候选共用一组对照时，预先登记候选及共同对照的触达和点击，以联合零假设模拟校准双侧最大检验量，给出校正结论及预算下各候选功效，控制整族误报。
+
+## 联合研究（多候选共用对照）
+- 联合研究独立于原触达计划：登记一名共同对照与最多50名候选（触达、点击、单次成本、预算），原独立研究照常。
+- 校正方法：各候选与共同对照做双侧合并比例z检验；在联合零假设（全体候选与对照同率，共同率取对照与活跃候选的合并估计）下模拟最大|z|统计量分布，校准临界值c与校正后p值。每次模拟抽样中全体候选共用同一次对照抽样，族内相关性由此进入校正。
+- 候选退出（软删除）仍保留在原检验族内：退出成员计入校准族规模但不再给出结论，防止事后删减候选放松校正。
+- 版本与并发：封存与更正都先锁定研究行，封存总是读取完整同版数据（data_version）。源数据任何更新使版本递增，未发布（queued/running）计算即时标记失效并自动按新版重算；已发布结论保留为历史。worker发布采用条件更新：仅当运行仍处于活跃状态、未发布过、且不存在更新的已发布结论时才生效——旧计算迟归不覆盖新结论，重试不重复发布，整族成员齐备才生效。中断恢复重新入队queued/running任务，沿用封存时保存的整族随机种子，结论可复现。
+- 页面（联合研究 tab）可查看采用成员、校正前后p值与结论差别、各次计算的失效原因。
+- 验证见 `backend/tests/` 与 TESTING.md：删减候选、更正交错、全零效应下整族误报均有确定性测试。
 
 ## 快速启动
 ```bash
@@ -48,11 +57,11 @@ seed是3个前瞻设计情景，每个计划1条基线/候选概率、成本和�
 |数据库|PostgreSQL16|
 |任务|Redis7持久队列，Python独立worker，心跳healthcheck|
 
-`frontend/src/`分api、stores、types、components/common、hooks、pages、router、utils、constants；`backend/src/`分config、models、schemas、services、controllers、routes、middlewares、utils、constants；`backend/scripts/seed_demo.py`自然键插入、重复不覆盖修改；`backend/migrations/README.md`说明schema版本。
+`frontend/src/`分api、stores、types、components/common、hooks、pages、router、utils、constants；`backend/src/`分config、models、schemas、services、controllers、routes、middlewares、utils、constants；`backend/scripts/seed_demo.py`自然键插入、重复不覆盖修改；`backend/migrations/README.md`说明schema版本；`backend/tests/`为pytest验证（联合校正、版本并发、独立研究回归）。
 
 环境变量 `.env.example`：COMPOSE_PROJECT_NAME、FRONTEND_PORT、BACKEND_PORT、DB_PORT、DB_PASSWORD、JWT_SECRET、SEED_DEMO。开发时在本地venv安装backend/requirements.txt，设置DATABASE_URL、REDIS_URL、JWT_SECRET再运行uvicorn；前端开发经Nginx代理 `/api/` 到不带前缀的API。
 
-共享枚举：角色admin/analyst/viewer和队列queued/running/completed/failed；后端`src/constants/enums.py`、认证与worker使用相同值；前端`src/types/enums.js`、状态与角色界面使用相同值。Google Fonts：Noto Serif SC + IBM Plex Mono；断网使用serif/monospace回退。
+共享枚举：角色admin/analyst/viewer和队列queued/running/completed/failed（联合计算另有invalidated失效态）；后端`src/constants/enums.py`、认证与worker使用相同值；前端`src/types/enums.js`、状态与角色界面使用相同值。Google Fonts：Noto Serif SC + IBM Plex Mono；断网使用serif/monospace回退。
 
 ## 算法输入、失败态与复现
 输入为选定批次全部观测和参数，输出核心数值、明细、解释；参数经后端严格白名单和范围验证。独立等样本双组、双侧正态近似。模拟功效用于检验近似；低事件率应谨慎采用，正式实验须另行预注册。。空批次拒绝；不完整字段/非有限数/非法计数拒绝；常量相关列与不足样本使任务failed并保留错误。固定seed42、输入checksum相同可复现。独立oracle：功效随样本趋势；公式对norm.ppf；MDE零与越界概率拒绝。

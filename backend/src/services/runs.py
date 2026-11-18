@@ -1,11 +1,9 @@
-import os,json,csv,io
-from pathlib import Path
-from redis import Redis
+import json,csv,io
 from sqlalchemy import select
 from fastapi import HTTPException
 from src.models.run import Run
 from src.models.review import Review
-from src.services import studies
+from src.services import studies,queue
 from src.services.domain_validation import validate_parameters
 from src.services.audits import log
 from src.utils.serializers import record,now,checksum
@@ -19,7 +17,7 @@ def create(db,data,user):
     snapshot=[{'source_key':x['source_key'],'values':x['values']} for x in rows]
     run=Run(study_id=data.study_id,name=data.name,parameters=params,snapshot=snapshot,checksum=checksum(snapshot),created_at=now(),status='queued')
     db.add(run);db.flush();log(db,user,'run.queue',str(run.id));db.commit()
-    Redis.from_url(os.environ['REDIS_URL']).rpush('analysis-queue',run.id)
+    queue.push('analysis-queue',run.id)
     return record(run)
 
 def get(db,id):

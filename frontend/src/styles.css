@@ -9,3 +9,5 @@
 .worksheet {background:transparent;border:1px solid var(--ink);border-left:12px solid var(--accent)}
 .login form {border-top:10px solid var(--accent)}
 @media(max-width:767px){.hero{grid-template-columns:1fr}.folio{font-size:65px}}
+/* Joint family: invalidated computations and adopted members. */
+.status.invalidated{border-style:dashed;color:oklch(45% .16 25)}
